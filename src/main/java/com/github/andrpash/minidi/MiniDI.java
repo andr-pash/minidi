@@ -8,15 +8,18 @@ import java.util.stream.Collectors;
 public class MiniDI
 {
 	private static final List<Class<? extends Annotation>> INJECT_ANNOTATIONS = new ArrayList<>( );
+	private static final List<Class<? extends Annotation>> SINGLETON_ANNOTATIONS = new ArrayList<>( );
 
 	static
 	{
 		INJECT_ANNOTATIONS.add( MiniDI.Inject.class );
+		SINGLETON_ANNOTATIONS.add( MiniDI.Singleton.class );
 		if ( jsr330supported( ) )
 		{
 			try
 			{
 				INJECT_ANNOTATIONS.add( ( Class<? extends Annotation> ) Class.forName( "javax.inject.Inject" ) );
+				SINGLETON_ANNOTATIONS.add( ( Class<? extends Annotation> ) Class.forName( "javax.inject.Singleton" ) );
 			}
 			catch ( final ClassNotFoundException ignored )
 			{
@@ -440,9 +443,12 @@ public class MiniDI
 				return this.bindingScope;
 			}
 
-			return clazz.getAnnotation( MiniDI.Singleton.class ) != null ?
-				BindingScope.SINGLETON :
-				BindingScope.TRANSIENT;
+			return SINGLETON_ANNOTATIONS.stream( )
+				.map( clazz::getAnnotation )
+				.filter( Objects::nonNull )
+				.findAny( )
+				.map( annotation -> BindingScope.SINGLETON )
+				.orElse( BindingScope.TRANSIENT );
 		}
 	}
 

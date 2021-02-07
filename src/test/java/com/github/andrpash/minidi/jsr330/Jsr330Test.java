@@ -50,4 +50,18 @@ public class Jsr330Test
 
 		assertThat( dummyDependency1 ).isEqualTo( dummyDependency2 );
 	}
+
+	@Test
+	public void respectsSingletonAnnotation( )
+	{
+		final MiniDI.Injector injector = MiniDI.create( )
+			.bind( DummyDependency.class ).toClass( DummyDependency.class )
+			.bind( JsrAndMiniDIMixed.class ).toClass( JsrAndMiniDIMixed.class )
+			.initialize( );
+
+		final DummyDependency dummyDependency1 = injector.get( JsrAndMiniDIMixed.class ).getDummyDependency1( );
+		final DummyDependency dummyDependency2 = injector.get( JsrAndMiniDIMixed.class ).getDummyDependency2( );
+
+		assertThat( dummyDependency1 ).isEqualTo( dummyDependency2 );
+	}
 }
