@@ -2,6 +2,7 @@ package com.github.andrpash.minidi.complex;
 
 import com.github.andrpash.minidi.MiniDI;
 import com.github.andrpash.minidi.complex.testclasses.Level1;
+import com.github.andrpash.minidi.complex.testclasses.WithInjectorDependency;
 import org.junit.Test;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -116,4 +117,33 @@ public class ComplexMiniDITest
 
 		assertThat( childLevel21 ).isEqualTo( rootLevel21 );
 	}
+
+	@Test
+	public void injectInjector_canInjectInjectorAsDependency( )
+	{
+		final MiniDI.Injector injector = MiniDI.create( )
+			.bind( WithInjectorDependency.class ).toClass( WithInjectorDependency.class )
+			.initialize( );
+
+		final WithInjectorDependency withInjectorDependency = injector.get( WithInjectorDependency.class );
+
+		assertThat( withInjectorDependency.getInjector( ) ).isEqualTo( injector );
+	}
+
+	@Test
+	public void multiLevelContainer_injectInjector_usedInjectorOfCorrectLevel( )
+	{
+		final MiniDI.Injector rootInjector = MiniDI.create( )
+			.bind( Level1.Level3.class ).toClass( Level1.Level3.class )
+			.initialize( );
+
+		final MiniDI.Injector childInjector = rootInjector.createChild( )
+			.bind( WithInjectorDependency.class ).toClass( WithInjectorDependency.class )
+			.initialize( );
+
+		final WithInjectorDependency withInjectorDependency = childInjector.get( WithInjectorDependency.class );
+
+		assertThat( withInjectorDependency.getInjector( ) ).isEqualTo( childInjector );
+	}
+
 }

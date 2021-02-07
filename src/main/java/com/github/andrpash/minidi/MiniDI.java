@@ -79,6 +79,9 @@ public class MiniDI
 		@Override
 		public Injector initialize( )
 		{
+			/* provide binding to injector instance */
+			this.bind( Injector.class ).toInstance( this );
+
 			for ( final Binding<?> binding : this.registry.getBindings( ) )
 			{
 				validateBinding( binding.clazz );
