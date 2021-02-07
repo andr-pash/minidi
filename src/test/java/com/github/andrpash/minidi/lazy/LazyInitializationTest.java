@@ -53,7 +53,9 @@ public class LazyInitializationTest
 	{
 		/* Given: two classes that lazily require the same interface which is marked as scope singleton */
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( ClassNameReturner.class ).toClass( ClassNameReturnerImpl.class )
+			.bind( ClassNameReturner.class )
+			.withScope( MiniDI.BindingScope.SINGLETON )
+			.toClass( ClassNameReturnerImpl.class )
 			.bind( SimpleValidLazyFieldClass.class ).toClass( SimpleValidLazyFieldClass.class )
 			.bind( SimpleValidLazyConstructorClass.class ).toClass( SimpleValidLazyConstructorClass.class )
 			.initialize( );

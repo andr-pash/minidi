@@ -63,7 +63,7 @@ public class ComplexMiniDITest
 	{
 		/* Given: parent + child container, with leaf node binding defined in parent */
 		final MiniDI.Injector rootContainer = MiniDI.create( )
-			.bind( Level1.Level3.class ).toClass( Level1.Level3.class )
+			.bind( Level1.Level3.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( Level1.Level3.class )
 			.initialize( );
 
 		final MiniDI.Injector childContainer = rootContainer.createChild( )
@@ -89,16 +89,16 @@ public class ComplexMiniDITest
 	{
 		/* Given: parent + child container, with leaf node binding defined in parent */
 		final MiniDI.Injector rootContainer = MiniDI.create( )
-			.bind( Level1.Level3.class ).toClass( Level1.Level3.class )
+			.bind( Level1.Level3.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( Level1.Level3.class )
 			.initialize( );
 
 		final MiniDI.Injector childContainer1 = rootContainer.createChild( )
-			.bind( Level1.Level2_1.class ).toClass( Level1.Level2_1.class )
-			.bind( Level1.Level2_2.class ).toClass( Level1.Level2_2.class )
+			.bind( Level1.Level2_1.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( Level1.Level2_1.class )
+			.bind( Level1.Level2_2.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( Level1.Level2_2.class )
 			.initialize( );
 
 		final MiniDI.Injector childContainer2 = childContainer1.createChild( )
-			.bind( Level1.class ).toClass( Level1.class )
+			.bind( Level1.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( Level1.class )
 			.initialize( );
 
 		/*

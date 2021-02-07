@@ -41,7 +41,7 @@ public class Jsr330Test
 	public void allowMixedAnnotations( )
 	{
 		final MiniDI.Injector injector = MiniDI.create( )
-			.bind( DummyDependency.class ).toClass( DummyDependency.class )
+			.bind( DummyDependency.class ).withScope( MiniDI.BindingScope.SINGLETON ).toClass( DummyDependency.class )
 			.bind( JsrAndMiniDIMixed.class ).toClass( JsrAndMiniDIMixed.class )
 			.initialize( );
 

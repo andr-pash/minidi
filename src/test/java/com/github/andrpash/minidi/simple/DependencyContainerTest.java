@@ -5,10 +5,7 @@ import com.github.andrpash.minidi.simple.testclasses.circular.*;
 import com.github.andrpash.minidi.simple.testclasses.invalid.DependentOnPrivateConstructorClass;
 import com.github.andrpash.minidi.simple.testclasses.invalid.PrivateConstructorClass;
 import com.github.andrpash.minidi.simple.testclasses.invalid.ThrowingConstructorClass;
-import com.github.andrpash.minidi.simple.testclasses.simple.NoDependencyClass;
-import com.github.andrpash.minidi.simple.testclasses.simple.OneConstructorDependencyClass;
-import com.github.andrpash.minidi.simple.testclasses.simple.OneFieldAndConstructorClass;
-import com.github.andrpash.minidi.simple.testclasses.simple.OneFieldDependencyClass;
+import com.github.andrpash.minidi.simple.testclasses.simple.*;
 import com.github.andrpash.minidi.simple.testclasses.subtype.SuperType;
 import com.github.andrpash.minidi.simple.testclasses.subtype.SuperTypeImpl;
 import com.github.andrpash.minidi.simple.testclasses.subtype.SuperTypeImplDependency;
@@ -71,7 +68,9 @@ public class DependencyContainerTest
 	public void test_instancesAreReused( )
 	{
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( NoDependencyClass.class ).toClass( NoDependencyClass.class )
+			.bind( NoDependencyClass.class )
+			.withScope( MiniDI.BindingScope.SINGLETON )
+			.toClass( NoDependencyClass.class )
 			.bind( OneFieldDependencyClass.class ).toClass( OneFieldDependencyClass.class )
 			.initialize( );
 
@@ -154,7 +153,7 @@ public class DependencyContainerTest
 	}
 
 	@Test
-	public void test_defaultsToSingletonScope( )
+	public void test_defaultsToTransientScope( )
 	{
 		final MiniDI.Injector container = MiniDI.create( )
 			.bind( NoDependencyClass.class )
@@ -164,7 +163,35 @@ public class DependencyContainerTest
 		final NoDependencyClass instance1 = container.get( NoDependencyClass.class );
 		final NoDependencyClass instance2 = container.get( NoDependencyClass.class );
 
+		assertThat( instance1 ).isNotEqualTo( instance2 );
+	}
+
+	@Test
+	public void test_useSingletonScopeIfAnnotationPresent( )
+	{
+		final MiniDI.Injector container = MiniDI.create( )
+			.bind( SingletonNoDependencyClass.class ).toClass( SingletonNoDependencyClass.class )
+			.initialize( );
+
+		final SingletonNoDependencyClass instance1 = container.get( SingletonNoDependencyClass.class );
+		final SingletonNoDependencyClass instance2 = container.get( SingletonNoDependencyClass.class );
+
 		assertThat( instance1 ).isEqualTo( instance2 );
+	}
+
+	@Test
+	public void test_useTransientScopeIfExplicitlyDefinedEvenIfAnnotatedAsSingleton( )
+	{
+		final MiniDI.Injector container = MiniDI.create( )
+			.bind( SingletonNoDependencyClass.class )
+			.withScope( MiniDI.BindingScope.TRANSIENT )
+			.toClass( SingletonNoDependencyClass.class )
+			.initialize( );
+
+		final SingletonNoDependencyClass instance1 = container.get( SingletonNoDependencyClass.class );
+		final SingletonNoDependencyClass instance2 = container.get( SingletonNoDependencyClass.class );
+
+		assertThat( instance1 ).isNotEqualTo( instance2 );
 	}
 
 	@Test( expected = MiniDI.MissingConstructorException.class )

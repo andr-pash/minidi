@@ -275,6 +275,12 @@ public class MiniDI
 	{
 	}
 
+	@Target( { ElementType.TYPE } )
+	@Retention( RetentionPolicy.RUNTIME )
+	public @interface Singleton
+	{
+	}
+
 	static class LazyInitProxy<T> implements InvocationHandler
 	{
 		private final Class<T> clazz;
@@ -386,10 +392,7 @@ public class MiniDI
 		public InjectorBuilder toClass( final Class<? extends T> clazz )
 		{
 			final Binding<T> binding = new ClassBinding<>( this.clazz, clazz );
-			if ( this.bindingScope != null )
-			{
-				binding.bindingScope = this.bindingScope;
-			}
+			binding.bindingScope = determineBindingScope( clazz );
 			registerBinding( binding );
 
 			return this.container;
@@ -408,10 +411,7 @@ public class MiniDI
 		public InjectorBuilder toFactory( final Class<? extends Factory<T>> factory )
 		{
 			final Binding<T> binding = new FactoryBinding<>( this.clazz, factory );
-			if ( this.bindingScope != null )
-			{
-				binding.bindingScope = this.bindingScope;
-			}
+			binding.bindingScope = determineBindingScope( factory );
 			registerBinding( binding );
 
 			return this.container;
@@ -431,6 +431,18 @@ public class MiniDI
 			{
 				this.container.validateBinding( binding.clazz );
 			}
+		}
+
+		private BindingScope determineBindingScope( final Class<?> clazz )
+		{
+			if ( this.bindingScope != null )
+			{
+				return this.bindingScope;
+			}
+
+			return clazz.getAnnotation( MiniDI.Singleton.class ) != null ?
+				BindingScope.SINGLETON :
+				BindingScope.TRANSIENT;
 		}
 	}
 
