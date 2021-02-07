@@ -14,6 +14,7 @@ public class MiniDI
 	{
 		INJECT_ANNOTATIONS.add( MiniDI.Inject.class );
 		SINGLETON_ANNOTATIONS.add( MiniDI.Singleton.class );
+
 		if ( jsr330supported( ) )
 		{
 			try
@@ -360,7 +361,7 @@ public class MiniDI
 	{
 		InjectorBuilder toClass( final Class<? extends T> clazz );
 
-		InjectorBuilder toFactory( final Class<? extends Factory<T>> clazz );
+		InjectorBuilder toProvider( final Class<? extends Provider<T>> clazz );
 	}
 
 	public interface ConfiguredBindingBuilder<T, U extends T>
@@ -411,10 +412,10 @@ public class MiniDI
 		}
 
 		@Override
-		public InjectorBuilder toFactory( final Class<? extends Factory<T>> factory )
+		public InjectorBuilder toProvider( final Class<? extends Provider<T>> provider )
 		{
-			final Binding<T> binding = new FactoryBinding<>( this.clazz, factory );
-			binding.bindingScope = determineBindingScope( factory );
+			final Binding<T> binding = new ProviderBinding<>( this.clazz, provider );
+			binding.bindingScope = determineBindingScope( provider );
 			registerBinding( binding );
 
 			return this.container;
@@ -452,9 +453,9 @@ public class MiniDI
 		}
 	}
 
-	public interface Factory<T>
+	public interface Provider<T>
 	{
-		T create( );
+		T get( );
 	}
 
 	static abstract class Dependency
@@ -711,23 +712,23 @@ public class MiniDI
 		}
 	}
 
-	static class FactoryBinding<T> extends Binding<T>
+	static class ProviderBinding<T> extends Binding<T>
 	{
-		public FactoryBinding( final Class<T> clazz, final Class<? extends Factory<T>> factoryClass )
+		public ProviderBinding( final Class<T> clazz, final Class<? extends Provider<T>> providerClass )
 		{
 			super( clazz );
-			this.dependencyInformation = resolveDependencies( factoryClass );
+			this.dependencyInformation = resolveDependencies( providerClass );
 		}
 
 		@Override
 		T construct( final Object[] constructorDependencies, final Object[] fieldDependencies )
 			throws IllegalAccessException, java.lang.InstantiationException, InvocationTargetException
 		{
-			final Factory<T> factory =
-				( Factory<T> ) this.dependencyInformation.constructor.newInstance( constructorDependencies );
-			injectFieldDependencies( factory, fieldDependencies );
+			final Provider<T> provider =
+				( Provider<T> ) this.dependencyInformation.constructor.newInstance( constructorDependencies );
+			injectFieldDependencies( provider, fieldDependencies );
 
-			final T instance = factory.create( );
+			final T instance = provider.get( );
 			if ( this.bindingScope == BindingScope.SINGLETON )
 			{
 				this.instance = instance;

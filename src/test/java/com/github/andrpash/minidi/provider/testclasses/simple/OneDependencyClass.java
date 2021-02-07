@@ -1,4 +1,4 @@
-package com.github.andrpash.minidi.factory.testclasses.simple;
+package com.github.andrpash.minidi.provider.testclasses.simple;
 
 import com.github.andrpash.minidi.MiniDI;
 

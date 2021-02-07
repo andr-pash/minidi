@@ -7,7 +7,7 @@ import org.junit.Test;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
-public class FactoryExampleTest
+public class ProviderExampleTest
 {
 	@Test
 	public void factoryExample( )
@@ -22,7 +22,7 @@ public class FactoryExampleTest
 		 * 		This allows us to react to changes of the configuration at runtime
 		 */
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( PaymentService.class ).withScope( BindingScope.TRANSIENT ).toFactory( PaymentServiceFactory.class )
+			.bind( PaymentService.class ).withScope( BindingScope.TRANSIENT ).toProvider( PaymentServiceProvider.class )
 			.bind( PaymentServiceConfig.class ).toInstance( config )
 			.initialize( );
 

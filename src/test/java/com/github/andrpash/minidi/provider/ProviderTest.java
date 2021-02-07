@@ -1,18 +1,18 @@
-package com.github.andrpash.minidi.factory;
+package com.github.andrpash.minidi.provider;
 
 import com.github.andrpash.minidi.MiniDI;
-import com.github.andrpash.minidi.factory.testclasses.simple.*;
+import com.github.andrpash.minidi.provider.testclasses.simple.*;
 import org.junit.Test;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
-public class FactoryTest
+public class ProviderTest
 {
 	@Test
 	public void simpleFactory_noDependencies( )
 	{
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( NoDependenciesClass.class ).toFactory( NoDependenciesFactory.class )
+			.bind( NoDependenciesClass.class ).toProvider( NoDependenciesProvider.class )
 			.initialize( );
 
 		final NoDependenciesClass instance = container.get( NoDependenciesClass.class );
@@ -24,7 +24,7 @@ public class FactoryTest
 	public void constructorInjection_pass( )
 	{
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( OneDependencyClass.class ).toFactory( ConstructorInjectionFactory.class )
+			.bind( OneDependencyClass.class ).toProvider( ConstructorInjectionProvider.class )
 			.bind( NoDependenciesClass.class ).toClass( NoDependenciesClass.class )
 			.initialize( );
 
@@ -37,7 +37,7 @@ public class FactoryTest
 	public void fieldInjection_pass( )
 	{
 		final MiniDI.Injector container = MiniDI.create( )
-			.bind( OneDependencyClass.class ).toFactory( FieldInjectionFactory.class )
+			.bind( OneDependencyClass.class ).toProvider( FieldInjectionProvider.class )
 			.bind( NoDependenciesClass.class ).toClass( NoDependenciesClass.class )
 			.initialize( );
 
