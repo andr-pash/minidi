@@ -1,15 +1,43 @@
 package com.github.andrpash.minidi;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class MiniDI
 {
+	private static final List<Class<? extends Annotation>> INJECT_ANNOTATIONS = new ArrayList<>( );
+
+	static
+	{
+		INJECT_ANNOTATIONS.add( MiniDI.Inject.class );
+		if ( jsr330supported( ) )
+		{
+			try
+			{
+				INJECT_ANNOTATIONS.add( ( Class<? extends Annotation> ) Class.forName( "javax.inject.Inject" ) );
+			}
+			catch ( final ClassNotFoundException ignored )
+			{
+
+			}
+		}
+	}
+
+	private static boolean jsr330supported( )
+	{
+		try
+		{
+			Class.forName( "javax.inject.Inject" );
+			return true;
+		}
+		catch ( final ClassNotFoundException e )
+		{
+			return false;
+		}
+	}
+
 	public interface InjectorBuilder
 	{
 		<T, U extends T> BindingBuilder<T, U> bind( Class<T> clazz );
@@ -523,12 +551,27 @@ public class MiniDI
 			return new DependencyInformation( constructor, injectionFields );
 		}
 
+		private boolean isInjectable( final AccessibleObject accessibleObject )
+		{
+			boolean isInjectable = false;
+			for ( final Class<? extends Annotation> injectAnnotation : INJECT_ANNOTATIONS )
+			{
+				isInjectable = accessibleObject.getAnnotation( injectAnnotation ) != null;
+				if ( isInjectable )
+				{
+					break;
+				}
+			}
+
+			return isInjectable;
+		}
+
 		private Constructor<?> getConstructor( final Class<?> clazz )
 		{
 			Constructor<?> constructor = null;
 			for ( final Constructor<?> declaredConstructor : clazz.getDeclaredConstructors( ) )
 			{
-				if ( declaredConstructor.getAnnotation( Inject.class ) != null )
+				if ( isInjectable( declaredConstructor ) )
 				{
 					constructor = declaredConstructor;
 					break;
@@ -562,7 +605,7 @@ public class MiniDI
 			final List<Field> dependencyFields = new ArrayList<>( );
 			for ( final Field field : fields )
 			{
-				final boolean isInjectable = field.getAnnotation( Inject.class ) != null;
+				final boolean isInjectable = isInjectable( field );
 
 				if ( isInjectable )
 				{

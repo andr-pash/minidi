@@ -42,5 +42,11 @@
 			<version>3.17.2</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>javax.inject</groupId>
+			<artifactId>javax.inject</artifactId>
+			<version>1</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 </project>
