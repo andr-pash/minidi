@@ -57,6 +57,8 @@ public class MiniDI
 	{
 		<T> T get( Class<T> clazz );
 
+		<T> T get( InjectionToken<T> injectionToken );
+
 		InjectorBuilder createChild( );
 
 		<T, U extends T> BindingBuilder<T, U> bindDynamic( Class<T> clazz );
@@ -67,8 +69,8 @@ public class MiniDI
 		InjectorImpl parent = null;
 		Registry registry = new Registry( );
 
-		List<Class<?>> dynamicBindings = new ArrayList<>( );
-		List<Class<?>> injectorPrivates = new ArrayList<>( );
+		List<InjectionToken<?>> dynamicBindings = new ArrayList<>( );
+		List<InjectionToken<?>> injectorPrivates = new ArrayList<>( );
 
 		private InjectorImpl( final InjectorImpl parent )
 		{
@@ -95,7 +97,9 @@ public class MiniDI
 		@Override
 		public InjectorBuilder injectorPrivate( final Class<?>... classes )
 		{
-			this.injectorPrivates.addAll( Arrays.asList( classes ) );
+			this.injectorPrivates.addAll(
+				Arrays.stream( classes ).map( InjectionToken::new ).collect( Collectors.toList( ) )
+			);
 
 			return this;
 		}
@@ -103,7 +107,9 @@ public class MiniDI
 		@Override
 		public InjectorBuilder dynamic( final Class<?>... classes )
 		{
-			this.dynamicBindings.addAll( Arrays.asList( classes ) );
+			this.dynamicBindings.addAll(
+				Arrays.stream( classes ).map( InjectionToken::new ).collect( Collectors.toList( ) )
+			);
 
 			return this;
 		}
@@ -116,7 +122,7 @@ public class MiniDI
 
 			for ( final Binding<?> binding : this.registry.getBindings( ) )
 			{
-				validateBinding( binding.clazz );
+				validateBinding( binding.injectionToken );
 			}
 
 			return this;
@@ -131,49 +137,55 @@ public class MiniDI
 		@Override
 		synchronized public <T> T get( final Class<T> clazz )
 		{
-			T instance = resolveInstance( clazz );
+			return get( new InjectionToken<>( clazz ) );
+		}
+
+		@Override public <T> T get( final InjectionToken<T> injectionToken )
+		{
+			T instance = resolveInstance( injectionToken );
 			if ( instance == null )
 			{
-				final Binding<T> binding = resolveBinding( clazz );
+				final Binding<T> binding = resolveBinding( injectionToken );
 				instance = createInstance( binding );
 			}
 
 			return instance;
 		}
 
-		private <T> T resolveInstance( final Class<T> clazz )
+		private <T> T resolveInstance( final InjectionToken<T> injectionToken )
 		{
 			T instance = null;
-			if ( this.registry.hasInstance( clazz ) )
+			if ( this.registry.hasInstance( injectionToken ) )
 			{
-				instance = this.registry.getInstance( clazz );
+				instance = this.registry.getInstance( injectionToken );
 			}
 			else if ( this.isChildInjector( ) )
 			{
-				instance = this.parent.resolveInstance( clazz );
+				instance = this.parent.resolveInstance( injectionToken );
 			}
 
 			return instance;
 		}
 
-		private <T> Binding<T> resolveBinding( final Class<T> clazz )
+		private <T> Binding<T> resolveBinding( final InjectionToken<T> injectionToken )
 		{
-			return resolveBinding( clazz, this );
+			return resolveBinding( injectionToken, this );
 		}
 
-		private <T> Binding<T> resolveBinding( final Class<T> clazz, final InjectorImpl requestingInjector )
+		private <T> Binding<T> resolveBinding( final InjectionToken<T> injectionToken,
+			final InjectorImpl requestingInjector )
 		{
 			final boolean isRequestToSelf = this == requestingInjector;
-			final boolean accessByChildAllowed = !this.injectorPrivates.contains( clazz );
+			final boolean accessByChildAllowed = !this.injectorPrivates.contains( injectionToken );
 
 			Binding<T> binding = null;
-			if ( ( isRequestToSelf || accessByChildAllowed ) && this.registry.hasBinding( clazz ) )
+			if ( ( isRequestToSelf || accessByChildAllowed ) && this.registry.hasBinding( injectionToken ) )
 			{
-				binding = this.registry.getBinding( clazz );
+				binding = this.registry.getBinding( injectionToken );
 			}
 			else if ( this.isChildInjector( ) )
 			{
-				binding = this.parent.resolveBinding( clazz, this );
+				binding = this.parent.resolveBinding( injectionToken, this );
 			}
 
 			return binding;
@@ -207,16 +219,18 @@ public class MiniDI
 			final ArrayList<Object> dependencyInstances = new ArrayList<>( );
 			for ( final Dependency dependency : dependencies )
 			{
-				Object instance = resolveInstance( dependency.type );
+				final InjectionToken<?> injectionToken = new InjectionToken<>( dependency.type )
+					.withQualifier( dependency.qualifier );
+				Object instance = resolveInstance( injectionToken );
 				if ( instance == null )
 				{
 					if ( dependency.lazy )
 					{
-						instance = createProxy( dependency.type );
+						instance = createProxy( injectionToken );
 					}
 					else
 					{
-						instance = get( dependency.type );
+						instance = get( injectionToken );
 					}
 				}
 
@@ -226,43 +240,48 @@ public class MiniDI
 			return dependencyInstances.toArray( );
 		}
 
-		private <T> T createProxy( final Class<T> clazz )
+		private <T> T createProxy( final InjectionToken<T> injectionToken )
 		{
 			return ( T ) Proxy.newProxyInstance(
-				clazz.getClassLoader( ),
-				new Class<?>[] { clazz },
-				new LazyInitProxy<>( clazz, this )
+				injectionToken.clazz.getClassLoader( ),
+				new Class<?>[] { injectionToken.clazz },
+				new LazyInitProxy<>( injectionToken, this )
 			);
 		}
 
-		private void validateBinding( final Class<?> clazz )
+		private void validateBinding( final InjectionToken<?> injectionToken )
 		{
-			validateBinding( clazz, new ArrayList<>( ) );
+			validateBinding( injectionToken, new ArrayList<>( ) );
 		}
 
-		private void validateBinding( final Class<?> clazz, final List<Class<?>> previousDependencies )
+		private void validateBinding(
+			final InjectionToken<?> injectionToken,
+			final List<InjectionToken<?>> previousDependencies )
 		{
-			if ( previousDependencies.contains( clazz ) )
+			if ( previousDependencies.contains( injectionToken ) )
 			{
 				throw new CircularDependencyException( previousDependencies.get( 0 ) );
 			}
-			previousDependencies.add( clazz );
+			previousDependencies.add( injectionToken );
 
-			final Binding<?> binding = resolveBinding( clazz );
-			if ( this.dynamicBindings.contains( clazz ) && binding == null )
+			final Binding<?> binding = resolveBinding( injectionToken );
+			if ( this.dynamicBindings.contains( injectionToken ) && binding == null )
 			{
 				return;
 			}
 
 			if ( binding == null )
 			{
-				throw new MissingBindingException( clazz );
+				throw new MissingBindingException( injectionToken );
 			}
 
 			for ( final Dependency dependency : binding.dependencyInformation.getAllDependencies( ) )
 			{
 				/* every subtree has to have it's own list copy to allow for duplicate injections of the same type */
-				validateBinding( dependency.type, new ArrayList<>( previousDependencies ) );
+				validateBinding(
+					new InjectionToken<>( dependency.type ).withQualifier( dependency.qualifier ),
+					new ArrayList<>( previousDependencies )
+				);
 			}
 		}
 	}
@@ -279,6 +298,13 @@ public class MiniDI
 	{
 	}
 
+	@Target( { ElementType.FIELD, ElementType.PARAMETER, ElementType.TYPE } )
+	@Retention( RetentionPolicy.RUNTIME )
+	public @interface Named
+	{
+		String value( );
+	}
+
 	@Target( { ElementType.TYPE } )
 	@Retention( RetentionPolicy.RUNTIME )
 	public @interface Singleton
@@ -287,13 +313,13 @@ public class MiniDI
 
 	static class LazyInitProxy<T> implements InvocationHandler
 	{
-		private final Class<T> clazz;
+		private final InjectionToken<T> injectionToken;
 		private final InjectorImpl container;
 		private T instance = null;
 
-		public LazyInitProxy( final Class<T> clazz, final InjectorImpl container )
+		public LazyInitProxy( final InjectionToken<T> injectionToken, final InjectorImpl container )
 		{
-			this.clazz = clazz;
+			this.injectionToken = injectionToken;
 			this.container = container;
 		}
 
@@ -303,7 +329,7 @@ public class MiniDI
 			/* Note: debugging this actually invokes the toString() method, which triggers the object creation */
 			if ( this.instance == null )
 			{
-				this.instance = this.container.get( this.clazz );
+				this.instance = this.container.get( this.injectionToken );
 			}
 
 			return method.invoke( this.instance, args );
@@ -312,40 +338,40 @@ public class MiniDI
 
 	public static class Registry
 	{
-		Map<Class<?>, Binding<?>> bindingRegistry = new HashMap<>( );
+		Map<InjectionToken<?>, Binding<?>> bindingRegistry = new HashMap<>( );
 
-		<T> Binding<T> getBinding( final Class<T> clazz )
+		<T> Binding<T> getBinding( final InjectionToken<T> injectionToken )
 		{
-			return ( Binding<T> ) this.bindingRegistry.get( clazz );
+			return ( Binding<T> ) this.bindingRegistry.get( injectionToken );
 		}
 
 		<T> void putBinding( final Binding<T> binding )
 		{
-			this.bindingRegistry.put( binding.clazz, binding );
+			this.bindingRegistry.put( binding.injectionToken, binding );
 		}
 
-		boolean hasBinding( final Class<?> clazz )
+		boolean hasBinding( final InjectionToken<?> injectionToken )
 		{
-			return this.bindingRegistry.containsKey( clazz );
+			return this.bindingRegistry.containsKey( injectionToken );
 		}
 
-		<T> T getInstance( final Class<T> clazz )
+		<T> T getInstance( final InjectionToken<T> injectionToken )
 		{
 			T instance = null;
-			if ( this.hasBinding( clazz ) )
+			if ( this.hasBinding( injectionToken ) )
 			{
-				instance = this.getBinding( clazz ).instance;
+				instance = this.getBinding( injectionToken ).instance;
 			}
 
 			return instance;
 		}
 
-		boolean hasInstance( final Class<?> clazz )
+		boolean hasInstance( final InjectionToken<?> injectionToken )
 		{
 			boolean hasInstance = false;
-			if ( this.hasBinding( clazz ) )
+			if ( this.hasBinding( injectionToken ) )
 			{
-				hasInstance = this.getBinding( clazz ).instance != null;
+				hasInstance = this.getBinding( injectionToken ).instance != null;
 			}
 
 			return hasInstance;
@@ -433,7 +459,7 @@ public class MiniDI
 			this.container.registry.putBinding( binding );
 			if ( this.validateOnCreation )
 			{
-				this.container.validateBinding( binding.clazz );
+				this.container.validateBinding( binding.injectionToken );
 			}
 		}
 
@@ -461,6 +487,7 @@ public class MiniDI
 	static abstract class Dependency
 	{
 		Class<?> type;
+		String qualifier;
 		boolean lazy;
 
 		public Dependency( final Class<?> type )
@@ -478,6 +505,9 @@ public class MiniDI
 			super( field.getType( ) );
 			this.field = field;
 			this.lazy = field.getAnnotation( Lazy.class ) != null;
+
+			final Named namedAnnotation = field.getAnnotation( Named.class );
+			this.qualifier = namedAnnotation != null ? namedAnnotation.value( ) : null;
 		}
 
 		public Field getField( )
@@ -492,6 +522,9 @@ public class MiniDI
 		{
 			super( parameter.getType( ) );
 			this.lazy = parameter.getAnnotation( Lazy.class ) != null;
+
+			final Named namedAnnotation = parameter.getAnnotation( Named.class );
+			this.qualifier = namedAnnotation != null ? namedAnnotation.value( ) : null;
 		}
 	}
 
@@ -547,16 +580,54 @@ public class MiniDI
 		TRANSIENT
 	}
 
-	static abstract class Binding<T>
+	static class InjectionToken<T>
 	{
 		Class<T> clazz;
+		String qualifier = null;
+
+		public InjectionToken( final Class<T> clazz )
+		{
+			this.clazz = clazz;
+		}
+
+		InjectionToken<T> withQualifier( final String qualifier )
+		{
+			this.qualifier = qualifier;
+			return this;
+		}
+
+		@Override
+		public boolean equals( final Object obj )
+		{
+			if ( this == obj )
+			{
+				return true;
+			}
+			if ( obj == null || getClass( ) != obj.getClass( ) )
+			{
+				return false;
+			}
+
+			final InjectionToken<?> that = ( InjectionToken<?> ) obj;
+			return this.clazz.equals( that.clazz ) && Objects.equals( this.qualifier, that.qualifier );
+		}
+
+		@Override public int hashCode( )
+		{
+			return Objects.hash( this.clazz, this.qualifier );
+		}
+	}
+
+	static abstract class Binding<T>
+	{
+		InjectionToken<T> injectionToken;
 		DependencyInformation dependencyInformation;
 		T instance = null;
-		BindingScope bindingScope = BindingScope.SINGLETON;
+		BindingScope bindingScope = BindingScope.TRANSIENT;
 
 		public Binding( final Class<T> clazz )
 		{
-			this.clazz = clazz;
+			this.injectionToken = new InjectionToken<>( clazz );
 		}
 
 		abstract T construct( Object[] constructorDependencies, Object[] fieldDependencies )
@@ -568,6 +639,13 @@ public class MiniDI
 			final List<Field> injectionFields = getInjectionFields( clazz );
 
 			return new DependencyInformation( constructor, injectionFields );
+		}
+
+		protected String determineQualifier( final Class<?> clazz )
+		{
+			final Named named = clazz.getAnnotation( Named.class );
+
+			return named != null ? named.value( ) : null;
 		}
 
 		private boolean isInjectable( final AccessibleObject accessibleObject )
@@ -677,6 +755,7 @@ public class MiniDI
 		{
 			super( clazz );
 			this.boundClazz = boundClazz;
+			this.injectionToken.withQualifier( determineQualifier( boundClazz ) );
 			this.dependencyInformation = resolveDependencies( boundClazz );
 		}
 
@@ -702,6 +781,7 @@ public class MiniDI
 		{
 			super( clazz );
 			this.instance = instance;
+			this.injectionToken.withQualifier( determineQualifier( instance.getClass( ) ) );
 			this.dependencyInformation = DependencyInformation.NONE;
 		}
 
@@ -717,6 +797,7 @@ public class MiniDI
 		public ProviderBinding( final Class<T> clazz, final Class<? extends Provider<T>> providerClass )
 		{
 			super( clazz );
+			this.injectionToken.withQualifier( determineQualifier( providerClass ) );
 			this.dependencyInformation = resolveDependencies( providerClass );
 		}
 
@@ -748,17 +829,23 @@ public class MiniDI
 
 	public static class CircularDependencyException extends RuntimeException
 	{
-		public CircularDependencyException( final Class<?> clazz )
+		public CircularDependencyException( final InjectionToken<?> injectionToken )
 		{
-			super( "Circular dependency detected for class " + clazz.getSimpleName( ) );
+			super(
+				"Circular dependency detected for class " + injectionToken.clazz.getSimpleName( ) +
+					injectionToken.qualifier != null ? " and qualifier " + injectionToken.qualifier : ""
+			);
 		}
 	}
 
 	public static class MissingBindingException extends RuntimeException
 	{
-		public <T> MissingBindingException( final Class<T> clazz )
+		public <T> MissingBindingException( final InjectionToken<T> injectionToken )
 		{
-			super( "Missing binding detected for class " + clazz );
+			super(
+				"Missing binding detected for class " + injectionToken.clazz.getSimpleName( ) +
+					injectionToken.qualifier != null ? " and qualifier " + injectionToken.qualifier : ""
+			);
 		}
 	}
 
