@@ -298,11 +298,17 @@ public class MiniDI
 	{
 	}
 
-	@Target( { ElementType.FIELD, ElementType.PARAMETER, ElementType.TYPE } )
+	@Qualifier
 	@Retention( RetentionPolicy.RUNTIME )
 	public @interface Named
 	{
-		String value( );
+		String value( ) default "";
+	}
+
+	@Target( { ElementType.ANNOTATION_TYPE } )
+	@Retention( RetentionPolicy.RUNTIME )
+	public @interface Qualifier
+	{
 	}
 
 	@Target( { ElementType.TYPE } )
@@ -505,9 +511,7 @@ public class MiniDI
 			super( field.getType( ) );
 			this.field = field;
 			this.lazy = field.getAnnotation( Lazy.class ) != null;
-
-			final Named namedAnnotation = field.getAnnotation( Named.class );
-			this.qualifier = namedAnnotation != null ? namedAnnotation.value( ) : null;
+			this.qualifier = determineQualifier( field );
 		}
 
 		public Field getField( )
@@ -522,9 +526,7 @@ public class MiniDI
 		{
 			super( parameter.getType( ) );
 			this.lazy = parameter.getAnnotation( Lazy.class ) != null;
-
-			final Named namedAnnotation = parameter.getAnnotation( Named.class );
-			this.qualifier = namedAnnotation != null ? namedAnnotation.value( ) : null;
+			this.qualifier = determineQualifier( parameter );
 		}
 	}
 
@@ -639,13 +641,6 @@ public class MiniDI
 			final List<Field> injectionFields = getInjectionFields( clazz );
 
 			return new DependencyInformation( constructor, injectionFields );
-		}
-
-		protected String determineQualifier( final Class<?> clazz )
-		{
-			final Named named = clazz.getAnnotation( Named.class );
-
-			return named != null ? named.value( ) : null;
 		}
 
 		private boolean isInjectable( final AccessibleObject accessibleObject )
@@ -867,6 +862,36 @@ public class MiniDI
 				"Lazy init is only allowed for interfaces.\n" +
 				"Please check the configuration for class: " + clazz );
 		}
+	}
+
+	static String determineQualifier( final AnnotatedElement annotatedElement )
+	{
+		Annotation qualifier = null;
+		for ( final Annotation declaredAnnotation : annotatedElement.getDeclaredAnnotations( ) )
+		{
+			if ( declaredAnnotation.annotationType( ).isAnnotationPresent( Qualifier.class ) )
+			{
+				qualifier = declaredAnnotation;
+				break;
+			}
+		}
+
+		if ( qualifier == null )
+		{
+			return null;
+		}
+
+		final String qualifierString;
+		if ( qualifier instanceof Named )
+		{
+			qualifierString = ( ( Named ) qualifier ).value( );
+		}
+		else
+		{
+			qualifierString = qualifier.annotationType( ).getCanonicalName( );
+		}
+
+		return qualifierString;
 	}
 
 	public static InjectorBuilder create( )
