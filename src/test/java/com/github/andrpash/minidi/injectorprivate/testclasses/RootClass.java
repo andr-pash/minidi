@@ -1,5 +1,5 @@
 package com.github.andrpash.minidi.injectorprivate.testclasses;
 
-public class RootClass
-{
+public class RootClass {
+
 }

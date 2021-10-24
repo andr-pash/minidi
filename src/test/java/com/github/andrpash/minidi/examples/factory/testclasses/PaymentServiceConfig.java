@@ -1,17 +1,15 @@
 package com.github.andrpash.minidi.examples.factory.testclasses;
 
 /* Instances of this class represent some kind of configuration you may have in your system */
-public class PaymentServiceConfig
-{
-	private boolean isConfigured = false;
+public class PaymentServiceConfig {
 
-	public boolean isConfigured( )
-	{
-		return this.isConfigured;
-	}
+    private boolean isConfigured = false;
 
-	public void setConfigured( final boolean configured )
-	{
-		this.isConfigured = configured;
-	}
+    public boolean isConfigured() {
+        return this.isConfigured;
+    }
+
+    public void setConfigured(final boolean configured) {
+        this.isConfigured = configured;
+    }
 }

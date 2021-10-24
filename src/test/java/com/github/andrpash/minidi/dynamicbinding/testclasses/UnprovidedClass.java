@@ -1,5 +1,5 @@
 package com.github.andrpash.minidi.dynamicbinding.testclasses;
 
-public class UnprovidedClass
-{
+public class UnprovidedClass {
+
 }

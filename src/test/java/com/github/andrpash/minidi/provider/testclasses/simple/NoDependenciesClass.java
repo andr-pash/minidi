@@ -1,5 +1,5 @@
 package com.github.andrpash.minidi.provider.testclasses.simple;
 
-public class NoDependenciesClass
-{
+public class NoDependenciesClass {
+
 }
