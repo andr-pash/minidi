@@ -48,7 +48,8 @@ public class DynamicBindingTest {
         .dynamic(DynamicRootClass.class)
         .initialize();
 
-    injector.bindDynamic(DynamicRootClass.class).toClass(DynamicRootWithMissingDependency.class);
+    injector.bindDynamic(DynamicRootClass.class)
+        .toClass(DynamicRootWithMissingDependency.class);
   }
 
   @Test

@@ -28,16 +28,29 @@ public class MiniDI {
 
   private static final List<Class<? extends Annotation>> INJECT_ANNOTATIONS = new ArrayList<>();
   private static final List<Class<? extends Annotation>> SINGLETON_ANNOTATIONS = new ArrayList<>();
+  private static final List<Class<? extends Annotation>> NAMED_ANNOTATIONS = new ArrayList<>();
+  private static final List<Class<? extends Annotation>> QUALIFIER_ANNOTATIONS = new ArrayList<>();
 
   static {
     INJECT_ANNOTATIONS.add(MiniDI.Inject.class);
     SINGLETON_ANNOTATIONS.add(MiniDI.Singleton.class);
+    NAMED_ANNOTATIONS.add(MiniDI.Named.class);
+    QUALIFIER_ANNOTATIONS.add(MiniDI.Qualifier.class);
 
     if (jsr330supported()) {
       try {
-        INJECT_ANNOTATIONS.add((Class<? extends Annotation>) Class.forName("javax.inject.Inject"));
+        INJECT_ANNOTATIONS.add(
+            (Class<? extends Annotation>) Class.forName("javax.inject.Inject")
+        );
         SINGLETON_ANNOTATIONS.add(
-            (Class<? extends Annotation>) Class.forName("javax.inject.Singleton"));
+            (Class<? extends Annotation>) Class.forName("javax.inject.Singleton")
+        );
+        NAMED_ANNOTATIONS.add(
+            (Class<? extends Annotation>) Class.forName("javax.inject.Named")
+        );
+        QUALIFIER_ANNOTATIONS.add(
+            (Class<? extends Annotation>) Class.forName("javax.inject.Qualifier")
+        );
       } catch (final ClassNotFoundException ignored) {
 
       }
@@ -125,7 +138,7 @@ public class MiniDI {
       this.bind(Injector.class).toInstance(this);
 
       for (final Binding<?> binding : this.registry.getBindings()) {
-        validateBinding(binding.injectionToken);
+        validateBinding(binding);
       }
 
       return this;
@@ -229,8 +242,12 @@ public class MiniDI {
       );
     }
 
-    private void validateBinding(final InjectionToken<?> injectionToken) {
-      validateBinding(injectionToken, new ArrayList<>());
+    private void validateBinding(final Binding<?> binding) {
+      if (binding instanceof ProviderBinding) {
+        ((ProviderBinding<?>) binding).validate();
+      }
+
+      validateBinding(binding.injectionToken, new ArrayList<>());
     }
 
     private void validateBinding(
@@ -357,7 +374,7 @@ public class MiniDI {
 
     InjectorBuilder toClass(final Class<? extends T> clazz);
 
-    InjectorBuilder toProvider(final Class<? extends Provider<T>> clazz);
+    InjectorBuilder toProvider(final Class<?> clazz);
   }
 
   public interface ConfiguredBindingBuilder<T, U extends T> {
@@ -405,8 +422,8 @@ public class MiniDI {
     }
 
     @Override
-    public InjectorBuilder toProvider(final Class<? extends Provider<T>> provider) {
-      final Binding<T> binding = new ProviderBinding<>(this.clazz, provider);
+    public InjectorBuilder toProvider(final Class<?> provider) {
+      final Binding<T> binding = new ProviderBinding<T>(this.clazz, provider);
       binding.bindingScope = determineBindingScope(provider);
       registerBinding(binding);
 
@@ -423,7 +440,7 @@ public class MiniDI {
     private void registerBinding(final Binding<?> binding) {
       this.container.registry.putBinding(binding);
       if (this.validateOnCreation) {
-        this.container.validateBinding(binding.injectionToken);
+        this.container.validateBinding(binding);
       }
     }
 
@@ -573,7 +590,7 @@ public class MiniDI {
     }
 
     abstract T construct(Object[] constructorDependencies, Object[] fieldDependencies)
-        throws java.lang.InstantiationException, IllegalAccessException, InvocationTargetException;
+        throws java.lang.InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException;
 
     protected DependencyInformation resolveDependencies(final Class<?> clazz) {
       final Constructor<?> constructor = getConstructor(clazz);
@@ -705,25 +722,49 @@ public class MiniDI {
 
   static class ProviderBinding<T> extends Binding<T> {
 
-    public ProviderBinding(final Class<T> clazz, final Class<? extends Provider<T>> providerClass) {
+    private Class<?> providerClass;
+
+    public ProviderBinding(final Class<T> clazz, final Class<?> providerClass) {
       super(clazz);
+      this.providerClass = providerClass;
       this.injectionToken.withQualifier(determineQualifier(providerClass));
       this.dependencyInformation = resolveDependencies(providerClass);
     }
 
     @Override
     T construct(final Object[] constructorDependencies, final Object[] fieldDependencies)
-        throws IllegalAccessException, java.lang.InstantiationException, InvocationTargetException {
-      final Provider<T> provider =
-          (Provider<T>) this.dependencyInformation.constructor.newInstance(constructorDependencies);
+        throws IllegalAccessException, java.lang.InstantiationException, InvocationTargetException, NoSuchMethodException {
+      final Object provider = this.dependencyInformation.constructor.newInstance(
+          constructorDependencies);
       injectFieldDependencies(provider, fieldDependencies);
 
-      final T instance = provider.get();
+      final T instance = (T) provider.getClass().getMethod("get").invoke(provider);
       if (this.bindingScope == BindingScope.SINGLETON) {
         this.instance = instance;
       }
 
       return instance;
+    }
+
+    public void validate() {
+      if (!hasGetMethod(this.providerClass)) {
+        throw new InvalidProviderClassException(this.providerClass);
+      }
+    }
+
+    private boolean hasGetMethod(Class<?> clazz) {
+      try {
+        Method method = clazz.getMethod("get");
+        Class<?> returnType = method.getReturnType();
+
+        if (!this.injectionToken.clazz.isAssignableFrom(returnType)) {
+          throw new InvalidProviderClassException(this.providerClass);
+        }
+
+        return true;
+      } catch (NoSuchMethodException e) {
+        return false;
+      }
     }
   }
 
@@ -772,10 +813,26 @@ public class MiniDI {
     }
   }
 
+  public static class InvalidProviderClassException extends RuntimeException {
+
+    public InvalidProviderClassException(final Class<?> clazz) {
+      super("Class not implementing Provider interface was set for a provider binding. " +
+          "Please check the use of class " + clazz);
+    }
+  }
+
+  public static class InvalidNamedAnnotationException extends RuntimeException {
+
+    public InvalidNamedAnnotationException(final Class<? extends Annotation> clazz) {
+      super("Provided invalid Named annotation, please check the use of the following class: "
+          + clazz);
+    }
+  }
+
   static String determineQualifier(final AnnotatedElement annotatedElement) {
     Annotation qualifier = null;
     for (final Annotation declaredAnnotation : annotatedElement.getDeclaredAnnotations()) {
-      if (declaredAnnotation.annotationType().isAnnotationPresent(Qualifier.class)) {
+      if (isAnnotationOfAnyType(declaredAnnotation, QUALIFIER_ANNOTATIONS)) {
         qualifier = declaredAnnotation;
         break;
       }
@@ -786,13 +843,29 @@ public class MiniDI {
     }
 
     final String qualifierString;
-    if (qualifier instanceof Named) {
-      qualifierString = ((Named) qualifier).value();
+    if (isInstanceOf(qualifier, NAMED_ANNOTATIONS)) {
+      try {
+        qualifierString = (String) qualifier.getClass().getMethod("value").invoke(qualifier);
+      } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+        throw new InvalidNamedAnnotationException(qualifier.getClass());
+      }
     } else {
       qualifierString = qualifier.annotationType().getCanonicalName();
     }
 
     return qualifierString;
+  }
+
+  private static boolean isInstanceOf(
+      final Object object,
+      final List<Class<? extends Annotation>> types) {
+    return types.stream().anyMatch(type -> type.isAssignableFrom(object.getClass()));
+  }
+
+  private static boolean isAnnotationOfAnyType(
+      final Annotation annotation,
+      final List<Class<? extends Annotation>> types) {
+    return types.stream().anyMatch(type -> annotation.annotationType().isAnnotationPresent(type));
   }
 
   public static InjectorBuilder create() {
